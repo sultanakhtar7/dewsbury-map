@@ -2,7 +2,7 @@ import mapboxgl from "mapbox-gl";
 import { MAP_STYLE } from "../MapBoxConfig";
 import { fetchBuildingData } from "./fetchBuildingData";
 import { handleBuildingClick } from "./handleBuildingClick";
-import { markPointsOfInterest } from "./PointsOfInterests"; // ✅ Unified marker logic
+import { markPointsOfInterest } from "./PointsOfInterests";
 
 export const initializeMap = async (
   mapContainer,
@@ -53,6 +53,36 @@ export const initializeMap = async (
       exaggeration: 1.5,
     });
 
+    // ✅ Add contour GeoJSON from public/assets
+    mapInstance.addSource("contours", {
+      type: "geojson",
+      data: "/assets/SE23NEContours.geojson",
+    });
+
+    mapInstance.addLayer({
+      id: "contour-lines",
+      type: "line",
+      source: "contours",
+      paint: {
+        "line-color": "#ff0000",
+        "line-width": 4,
+      },
+    });
+
+    // Optional: Add elevation labels
+    mapInstance.addLayer({
+      id: "contour-labels",
+      type: "symbol",
+      source: "contours",
+      layout: {
+        "text-field": ["get", "elev"],
+        "text-size": 10,
+      },
+      paint: {
+        "text-color": "#333",
+      },
+    });
+
     // Fetch and render buildings
     const data = await fetchBuildingData();
     if (!data || !data.features || data.features.length === 0) {
@@ -60,16 +90,13 @@ export const initializeMap = async (
       return;
     }
 
-    // ✅ Update building properties with POIs
     await markPointsOfInterest(mapInstance, data.features);
 
-    // Add building source
     mapInstance.addSource("dewsbury-buildings", {
       type: "geojson",
       data,
     });
 
-    // 3D building layer
     mapInstance.addLayer({
       id: "3d-buildings",
       type: "fill-extrusion",
@@ -77,35 +104,25 @@ export const initializeMap = async (
       paint: {
         "fill-extrusion-color": [
           "case",
-          // Both jobs + sales
           [
             "all",
             ["==", ["get", "hasJobs"], true],
             ["==", ["get", "hasSales"], true],
           ],
-          "#FFD700", // gold
-
-          // Jobs only
+          "#FFD700",
           ["==", ["get", "hasJobs"], true],
-          "#4CAF50", // elegant green
-
-          // Sales only
+          "#4CAF50",
           ["==", ["get", "hasSales"], true],
-          "#E53935", // strong red
-
-          // Selected fallback color (optional)
+          "#E53935",
           ["==", ["get", "selected"], true],
-          "#2196F3", // blue
-
-          // Default
-          "#D3D3D3", // light grey
+          "#2196F3",
+          "#D3D3D3",
         ],
-
         "fill-extrusion-height": [
           "case",
           ["==", ["get", "selected"], true],
           ["get", "calculatedHeight"],
-          ["*", ["get", "defaultHeight"], 0.1], // 10% of height
+          ["*", ["get", "defaultHeight"], 0.1],
         ],
         "fill-extrusion-base": 0.5,
         "fill-extrusion-opacity": 1.0,
@@ -113,7 +130,6 @@ export const initializeMap = async (
       },
     });
 
-    // Glow effect for selected building
     mapInstance.addLayer({
       id: "building-glow",
       type: "line",
@@ -127,10 +143,7 @@ export const initializeMap = async (
       },
     });
 
-    // Handle clicks on buildings
     handleBuildingClick(mapInstance, setSelectedBuilding);
-
-    // Set map instance in state
     setMap(mapInstance);
   });
 
